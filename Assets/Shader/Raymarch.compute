@@ -3,12 +3,6 @@
 
 // Create a RenderTexture with enableRandomWrite flag and set it
 // with cs.SetTexture
-RWTexture2D<float4> Result;
-
-float Resolution;
-float4x4 CamToWorldMatrix;
-float4x4 InverseProjMatrix;
-
 struct Ray {
     float3 origin;
     float3 dir;
@@ -17,10 +11,24 @@ struct Ray {
 struct ShapeData
 {
     int type;
+    float3 position;
+    float3 scale;
     float4 color;
 };
 
+static const float MAX_DIST = 100;
+static const float THRESHOLD = 0.001;
+
+RWTexture2D<float4> dest;
+Texture2D<float4> source;
+
+float Resolution;
+float4x4 CamToWorldMatrix;
+float4x4 InverseProjMatrix;
 StructuredBuffer<ShapeData> shapes;
+int shapesLen;
+
+
 
 Ray CreateRay(float3 origin, float3 dir) {
     Ray ray;
@@ -42,24 +50,81 @@ Ray CameraRay(float2 xy) {
 
 }
 
-float SDFBox(float3 p, float origin, float size) {
-   
+float SDFBox(float3 p, float3 origin, float3 size) {
+    float3 o = abs(p - origin) - size;
+    float ud = length(max(o, 0));
+    float n = max(max(min(o.x, 0), min(o.y, 0)), min(o.z, 0));
+    return ud + n;
 }
 
-float SDFSphere(float3 p, float origin, float radius) {
+float SDFSphere(float3 p, float3 origin, float radius) {
     return distance(p, origin) - radius;
+}
+
+float GetShapeSDF(ShapeData s, float3 p) {
+    float dist;
+    switch (s.type) {
+        case 0:
+            dist = SDFSphere(p, s.position, s.scale.x);
+            break;
+        case 1:
+            dist = SDFBox(p,s.position,s.scale);
+            break;
+        default:
+            dist = MAX_DIST;
+            break;
+    }
+    return dist;
+}
+
+float4 GetClosestShapeData(float3 p) {
+    float closestDist = MAX_DIST;
+    float3 closestColor = float3(0,0,0);
+    for (int i = 0; i < shapesLen; i++) {
+        ShapeData s = shapes[i];
+        
+        float distToShape = GetShapeSDF(s, p);
+        if (distToShape < closestDist) {
+            closestDist = distToShape;
+            closestColor = s.color.rgb;
+        }
+    }
+    return float4(closestColor, closestDist);
 }
 
 [numthreads(8,8,1)]
 void CSMain (uint3 id : SV_DispatchThreadID)
 {
+    //Default to showing the scene normally
+    dest[id.xy] = source[id.xy];
     uint width, height;
-    Result.GetDimensions(width, height);
-    float x = id.x + 0.5f / width * 2.0f - 1.0f;
-    float y = id.y + 0.5f / height * 2.0f - 1.0f;
-    float2 xy = float2(x, y);
+    dest.GetDimensions(width, height);
+    float x = id.x / width * 2.0f - 1.0f;
+    float y = id.y/ height * 2.0f - 1.0f;
+    float2 xy = id.xy / float2(width, height) * 2 - 1;;
     Ray ray = CameraRay(xy);
-    Result[id.xy] = float4(ray.dir * 0.5f + 0.5f, 1.0f);
+    float steps = 0;
+    int it = 0;
+    float4 closestData;
+    
+    while (steps < MAX_DIST ) {
+        
+        closestData = GetClosestShapeData(ray.origin);
+        
+        //dest[id.xy] = float4(closestData.w,1,1, 1);
+        //dest[id.xy] = float4(ray.origin * closestData.w, 1);
+        if (closestData.w < THRESHOLD) {
+            
+            dest[id.xy] = float4(closestData.rgb, 1);
+            break;
+        }
+        //March
+        ray.origin = ray.origin + ray.dir * closestData.w;
+        
+        steps += closestData.w;
+        it++;
+    }
+    //Result[id.xy] = float4(ray.dir * 0.5f + 0.5f, 1.0f);
     //Result[id.xy] = float4(x,y,0.0, 0.0);
     //Go through all shapes and find distance and Color 
     //if distance is smaller than threshold output the pixel
