@@ -17,6 +17,7 @@ public class RaymarchCam : MonoBehaviour
         public int type;
         public Vector3 position;
         public Vector3 scale;
+        public Vector3 rot;
         public Vector4 color;
     }
 
@@ -89,6 +90,7 @@ public class RaymarchCam : MonoBehaviour
             result[i].type = list[i].GetShape();
             result[i].position = list[i].GetPosition();
             result[i].scale = list[i].GetScale();
+            result[i].rot = list[i].GetRotation();
             result[i].color = list[i].GetColor();
             
         }
@@ -99,7 +101,7 @@ public class RaymarchCam : MonoBehaviour
     {
         
         //Shape data
-        int shapeDataBytes = sizeof(int) + sizeof(float)*(3+3+4);
+        int shapeDataBytes = sizeof(int) + sizeof(float)*(3+3+3+4);
         shapeBuffer = new ComputeBuffer(shapeDataArr.Length, shapeDataBytes);
         shapeBuffer.SetData(shapeDataArr);
         ShapeData[] temp = new ShapeData[2];

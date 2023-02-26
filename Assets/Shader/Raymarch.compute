@@ -13,6 +13,7 @@ struct ShapeData
     int type;
     float3 position;
     float3 scale;
+    float3 rot;
     float4 color;
 };
 
@@ -28,7 +29,38 @@ float4x4 InverseProjMatrix;
 StructuredBuffer<ShapeData> shapes;
 int shapesLen;
 
+float4x4 GetRotateX(float theta) {
+    float c = cos(theta);
+    float s = sin(theta);
+    return float4x4(
+        float4(1, 0, 0,0),
+        float4(0, c, -s,0),
+        float4(0, s, c,0),
+        float4(0, 0, 0, 1)
+    );
+}
 
+float4x4 GetRotateY(float theta) {
+    float c = cos(theta);
+    float s = sin(theta);
+    return float4x4(
+        float4(c, 0, s, 0),
+        float4(0, 1, 0,0),
+        float4(-s, 0, c,0),
+        float4(0,0,0,1)
+    );
+}
+
+float4x4 GetRotateZ(float theta) {
+    float c = cos(theta);
+    float s = sin(theta);
+    return float4x4(
+        float4(c, -s, 0,0),
+        float4(s, c, 0,0),
+        float4(0, 0, 1,0),
+        float4(0, 0, 0, 1)
+    );
+}
 
 Ray CreateRay(float3 origin, float3 dir) {
     Ray ray;
@@ -63,12 +95,19 @@ float SDFSphere(float3 p, float3 origin, float radius) {
 
 float GetShapeSDF(ShapeData s, float3 p) {
     float dist;
+    float4 samplePointWithRotation = float4(p,1.0);
+
+
+    // Unity default rotation order is Z-X-Y: https://docs.unity3d.com/Packages/com.unity.mathematics@0.0/api/Unity.Mathematics.math.RotationOrder.html#:~:text=Unity%20default%20rotation%20order.,finally%20around%20the%20y%20axis.&text=Extrinsic%20rotation%20around%20the%20x,finally%20around%20the%20z%20axis.&text=Extrinsic%20rotation%20around%20the%20x%20axis%2C%20then%20around%20the%20z,finally%20around%20the%20y%20axis.
+    samplePointWithRotation = mul(samplePointWithRotation, GetRotateY(s.rot.y));
+    samplePointWithRotation = mul(samplePointWithRotation, GetRotateX(s.rot.x));
+    samplePointWithRotation = mul(samplePointWithRotation, GetRotateZ(s.rot.z));
     switch (s.type) {
         case 0:
-            dist = SDFSphere(p, s.position, s.scale.x);
+            dist = SDFSphere(samplePointWithRotation.xyz, s.position, s.scale.x);
             break;
         case 1:
-            dist = SDFBox(p,s.position,s.scale);
+            dist = SDFBox(samplePointWithRotation.xyz,s.position,s.scale);
             break;
         default:
             dist = MAX_DIST;
@@ -90,6 +129,14 @@ float4 GetClosestShapeData(float3 p) {
         }
     }
     return float4(closestColor, closestDist);
+}
+
+float3 EsitmateNormal(float3 p) {
+    return normalize(float3(
+        GetClosestShapeData(float3(p.x + THRESHOLD, p.yz)).w - GetClosestShapeData(float3(p.x - THRESHOLD, p.yz)).w,
+        GetClosestShapeData(float3(p.x, p.y + THRESHOLD, p.z)).w - GetClosestShapeData(float3(p.x, p.y - THRESHOLD, p.z)).w,
+        GetClosestShapeData(float3(p.xy, p.z + THRESHOLD)).w - GetClosestShapeData(float3(p.xy, p.z - THRESHOLD)).w
+        ));
 }
 
 [numthreads(8,8,1)]
