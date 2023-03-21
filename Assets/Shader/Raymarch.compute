@@ -29,6 +29,8 @@ float4x4 InverseProjMatrix;
 StructuredBuffer<ShapeData> shapes;
 int shapesLen;
 
+float3 light;
+
 float4x4 GetRotateX(float theta) {
     float c = cos(theta);
     float s = sin(theta);
@@ -139,6 +141,30 @@ float3 EsitmateNormal(float3 p) {
         ));
 }
 
+float4 BlinnPhong(float3 p, float3 shapeColor) {
+    float3 lightDir = normalize(light - p);
+    float3 E = normalize(-p);
+    float3 H = normalize(lightDir + E);
+    float3 N = EsitmateNormal(p);
+
+    float4 amb = float4(shapeColor,1.0);
+
+    float Kd = max(dot(lightDir, N), 0.0);
+    float4 diffuse = Kd * (float4(1.0, 1.0, 1.0, 1.0) * float4(1.0, 0.8, 0.0, 1.0));
+
+    float Ks = pow(max(dot(N, H), 0.0), 100.0);
+    float4 spec = Ks * (float4(1.0, 1.0, 1.0, 1.0) * float4(1.0, 0.8, 0.0, 1.0)); 
+
+    if (dot(lightDir, N) < 0.0) {
+        spec = float4(0, 0, 0, 1);
+    }
+
+    float4 color = amb + diffuse + spec;
+    color.w = 1;
+    return color;
+
+}
+
 [numthreads(8,8,1)]
 void CSMain (uint3 id : SV_DispatchThreadID)
 {
@@ -163,6 +189,8 @@ void CSMain (uint3 id : SV_DispatchThreadID)
         if (closestData.w < THRESHOLD) {
             
             dest[id.xy] = float4(closestData.rgb, 1);
+            float4 fColor = BlinnPhong(ray.origin + ray.dir * closestData.w, closestData.rgb);
+            dest[id.xy] = fColor;
             break;
         }
         //March

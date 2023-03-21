@@ -10,7 +10,7 @@ public class RaymarchCam : MonoBehaviour
     private ShapeData[] shapeDataArr;
     private List<RaymarchShape> shapes;
     Camera cam;
-    Light lightSource;
+    [SerializeField]  private Light lightSource;
 
     struct ShapeData
     {
@@ -116,7 +116,7 @@ public class RaymarchCam : MonoBehaviour
         //Cam inverse matrix 
         raymarch.SetMatrix("InverseProjMatrix", cam.projectionMatrix.inverse);
         //Lights
-
+        raymarch.SetVector("light", lightSource.transform.position);
         
     }
 }
