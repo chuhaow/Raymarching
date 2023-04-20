@@ -14,7 +14,27 @@ struct ShapeData
     float3 position;
     float3 scale;
     float3 rot;
+    float3 ambient;
+    float4 diffuse;
+    float3 specular;
+};
+
+struct ReturnData
+{
+    float dist;
+    float3 ambient;
+    float4 diffuse;
+    float3 specular;
+};
+
+struct LightData {
+    int type;
+    float3 position;
+    float3 scale;
+    float3 rot;
     float4 color;
+    float3 forward;
+    float cutOffAngle;
 };
 
 static const float MAX_DIST = 100;
@@ -28,6 +48,9 @@ float4x4 CamToWorldMatrix;
 float4x4 InverseProjMatrix;
 StructuredBuffer<ShapeData> shapes;
 int shapesLen;
+
+StructuredBuffer<LightData> lights;
+int lightsLen;
 
 float3 light;
 
@@ -118,48 +141,53 @@ float GetShapeSDF(ShapeData s, float3 p) {
     return dist;
 }
 
-float4 GetClosestShapeData(float3 p) {
+ReturnData GetClosestShapeData(float3 p) {
     float closestDist = MAX_DIST;
     float3 closestColor = float3(0,0,0);
+    ReturnData result = { closestDist, float3(0,0,0),float4(0,0,0,1), float3(0,0,0) };
     for (int i = 0; i < shapesLen; i++) {
         ShapeData s = shapes[i];
         
         float distToShape = GetShapeSDF(s, p);
         if (distToShape < closestDist) {
+            result.dist = distToShape; 
+            result.ambient = s.ambient;
+            result.diffuse = s.diffuse;
+            result.specular = s.specular;
             closestDist = distToShape;
-            closestColor = s.color.rgb;
+            closestColor = s.diffuse.rgb;
         }
     }
-    return float4(closestColor, closestDist);
+    return result;
 }
 
 float3 EsitmateNormal(float3 p) {
     return normalize(float3(
-        GetClosestShapeData(float3(p.x + THRESHOLD, p.yz)).w - GetClosestShapeData(float3(p.x - THRESHOLD, p.yz)).w,
-        GetClosestShapeData(float3(p.x, p.y + THRESHOLD, p.z)).w - GetClosestShapeData(float3(p.x, p.y - THRESHOLD, p.z)).w,
-        GetClosestShapeData(float3(p.xy, p.z + THRESHOLD)).w - GetClosestShapeData(float3(p.xy, p.z - THRESHOLD)).w
+        GetClosestShapeData(float3(p.x + THRESHOLD, p.yz)).dist - GetClosestShapeData(float3(p.x - THRESHOLD, p.yz)).dist,
+        GetClosestShapeData(float3(p.x, p.y + THRESHOLD, p.z)).dist - GetClosestShapeData(float3(p.x, p.y - THRESHOLD, p.z)).dist,
+        GetClosestShapeData(float3(p.xy, p.z + THRESHOLD)).dist - GetClosestShapeData(float3(p.xy, p.z - THRESHOLD)).dist
         ));
 }
 
-float4 BlinnPhong(float3 p, float3 shapeColor) {
-    float3 lightDir = normalize(light - p);
-    float3 E = normalize(-p);
+float4 BlinnPhong(float3 p, float3 orig,float3 L,float3 lightColor,float3 ambient ,float3 matDiffuse, float3 specular) {
+    float3 lightDir = -L;
+    float3 E = normalize(orig - p);
     float3 H = normalize(lightDir + E);
     float3 N = EsitmateNormal(p);
 
-    float4 amb = float4(shapeColor,1.0);
+    float4 amb = float4(ambient, 1.0);
 
-    float Kd = max(dot(lightDir, N), 0.0);
-    float4 diffuse = Kd * (float4(1.0, 1.0, 1.0, 1.0) * float4(1.0, 0.8, 0.0, 1.0));
+    float Kd = max(dot(N, lightDir), 0.0);
+    float4 diffuse = Kd * float4(matDiffuse, 1.0);
 
     float Ks = pow(max(dot(N, H), 0.0), 100.0);
-    float4 spec = Ks * (float4(1.0, 1.0, 1.0, 1.0) * float4(1.0, 0.8, 0.0, 1.0)); 
+    float4 spec = Ks * float4(specular, 1.0);
 
     if (dot(lightDir, N) < 0.0) {
         spec = float4(0, 0, 0, 1);
     }
 
-    float4 color = amb + diffuse + spec;
+    float4 color =  clamp((diffuse + spec)*float4(lightColor,1.0f), float4(0.0f, 0.0f, 0.0f, 0.0f),float4(1.0f, 1.0f, 1.0f, 1.0f));
     color.w = 1;
     return color;
 
@@ -178,7 +206,7 @@ void CSMain (uint3 id : SV_DispatchThreadID)
     Ray ray = CameraRay(xy);
     float steps = 0;
     int it = 0;
-    float4 closestData;
+    ReturnData closestData;
     
     while (steps < MAX_DIST ) {
         
@@ -186,17 +214,31 @@ void CSMain (uint3 id : SV_DispatchThreadID)
         
         //dest[id.xy] = float4(closestData.w,1,1, 1);
         //dest[id.xy] = float4(ray.origin * closestData.w, 1);
-        if (closestData.w < THRESHOLD) {
+        if (closestData.dist < THRESHOLD) {
             
-            dest[id.xy] = float4(closestData.rgb, 1);
-            float4 fColor = BlinnPhong(ray.origin + ray.dir * closestData.w, closestData.rgb);
+            dest[id.xy] = float4(closestData.diffuse.rgb, 1);
+            float4 fColor = float4(0,0,0,1);
+            for (int i = 0; i < lightsLen; i++) {
+                if (lights[i].type == 0) { //Directional
+                    fColor += BlinnPhong(ray.origin + ray.dir * closestData.dist, ray.origin,normalize(lights[i].forward),lights[i].color, closestData.ambient.rgb, closestData.diffuse.rgb, closestData.specular.rgb);
+                }
+                else if (lights[i].type == 1) { //Point
+
+                }
+                else if (lights[i].type == 2) { //Spot
+
+                }
+                else {
+                    fColor += lights[i].color * float4(closestData.ambient,1.0);
+                }
+            }
             dest[id.xy] = fColor;
             break;
         }
         //March
-        ray.origin = ray.origin + ray.dir * closestData.w;
+        ray.origin = ray.origin + ray.dir * closestData.dist;
         
-        steps += closestData.w;
+        steps += closestData.dist;
         it++;
     }
     //Result[id.xy] = float4(ray.dir * 0.5f + 0.5f, 1.0f);

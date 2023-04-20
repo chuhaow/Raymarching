@@ -5,7 +5,9 @@ using UnityEngine;
 public class RaymarchShape : MonoBehaviour
 {
     [SerializeField] private Shape shape = Shape.CUBE;
-    [SerializeField] private Color color = Color.white;
+    [SerializeField] private Vector3 ambient = new Vector3(0.3f, 0.3f, 0.3f);
+    [SerializeField] private Color diffuse = Color.white;
+    [SerializeField] private Vector3 specular = new Vector3(1, 1, 1); 
     private enum Shape
     {
         SPHERE,
@@ -24,7 +26,7 @@ public class RaymarchShape : MonoBehaviour
 
     public Color GetColor()
     {
-        return color;
+        return diffuse;
     }
 
     public Vector3 GetScale()
@@ -37,4 +39,13 @@ public class RaymarchShape : MonoBehaviour
         return transform.localEulerAngles * Mathf.Deg2Rad;
     }
 
+    public Vector3 GetAmbient()
+    {
+        return ambient;
+    }
+
+    public Vector3 GetSpecular()
+    {
+        return specular;
+    }
 }
