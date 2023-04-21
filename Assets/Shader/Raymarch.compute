@@ -1,8 +1,12 @@
 // Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel CSMain
 
+
 // Create a RenderTexture with enableRandomWrite flag and set it
 // with cs.SetTexture
+
+float3 EsitmateNormal(float3 p);
+
 struct Ray {
     float3 origin;
     float3 dir;
@@ -11,9 +15,11 @@ struct Ray {
 struct ShapeData
 {
     int type;
+    int behaviour;
     float3 position;
     float3 scale;
     float3 rot;
+    float3 normal;
     float3 ambient;
     float4 diffuse;
     float3 specular;
@@ -53,6 +59,8 @@ StructuredBuffer<LightData> lights;
 int lightsLen;
 
 float3 light;
+
+float r;
 
 float4x4 GetRotateX(float theta) {
     float c = cos(theta);
@@ -115,7 +123,18 @@ float SDFBox(float3 p, float3 origin, float3 size) {
 }
 
 float SDFSphere(float3 p, float3 origin, float radius) {
-    return distance(p, origin) - radius;
+    float displacement = 0;//sin(r * p.x) *  cos( r * p.y) * cos( r * p.z);//sin(r * p.x)*cos(r * p.x) * sin(r * p.y) * cos(r * p.y* p.y) * sin(r * p.z) * cos(r * p.z) * 0.25;
+    return distance(p, origin) - radius + displacement;
+}
+
+float SDFPlane(float3 p, float n, float h) {
+    n = normalize(n);
+    return dot(p, n) + h;
+}
+
+float SmoothMin(float a, float b, float k) {
+    float h = max(k - abs(a - b), 0.0) / k;
+    return min(a, b) - h * h * k * (1.0 / 4.0);
 }
 
 float GetShapeSDF(ShapeData s, float3 p) {
@@ -134,6 +153,9 @@ float GetShapeSDF(ShapeData s, float3 p) {
         case 1:
             dist = SDFBox(samplePointWithRotation.xyz,s.position,s.scale);
             break;
+        case 2:
+            dist = SDFPlane(samplePointWithRotation.xyz, s.normal, s.position.y);
+            break;
         default:
             dist = MAX_DIST;
             break;
@@ -141,33 +163,82 @@ float GetShapeSDF(ShapeData s, float3 p) {
     return dist;
 }
 
-ReturnData GetClosestShapeData(float3 p) {
+ReturnData GetMarchData(float3 p) {
     float closestDist = MAX_DIST;
-    float3 closestColor = float3(0,0,0);
-    ReturnData result = { closestDist, float3(0,0,0),float4(0,0,0,1), float3(0,0,0) };
+    float4 lastColor = float4(1, 1, 1, 1);
+    float3 closestColor = float3(0, 0, 0);
+    ReturnData result = { closestDist, float3(0,0,0),lastColor, float3(0,0,0) };
     for (int i = 0; i < shapesLen; i++) {
         ShapeData s = shapes[i];
-        
         float distToShape = GetShapeSDF(s, p);
-        if (distToShape < closestDist) {
-            result.dist = distToShape; 
-            result.ambient = s.ambient;
-            result.diffuse = s.diffuse;
-            result.specular = s.specular;
-            closestDist = distToShape;
-            closestColor = s.diffuse.rgb;
+        switch (s.behaviour) {
+            case 0: //Default
+                if (distToShape < closestDist) {
+                    result.dist = distToShape;
+                    result.ambient = s.ambient;
+                    result.diffuse = s.diffuse;
+                    result.specular = s.specular;
+                    //closestDist = distToShape;
+                    //closestColor = s.diffuse.rgb;
+                }
+                result.diffuse = s.diffuse;
+                break;
+            case 1: // BLEND
+                float smin = SmoothMin(distToShape, closestDist, 0.6f);
+
+                //float4 blendColor = lerp(lastColor, s.diffuse, smin);
+                result.dist = smin;
+                result.ambient = s.ambient;
+                result.diffuse = s.diffuse;
+                result.specular = s.specular;
+                //closestDist = smin;
+                //closestColor = s.diffuse.rgb;
+                break;
+                
+            case 2: // WRAP
+                if (distToShape < closestDist) {
+                    float smin = SmoothMin(distToShape, closestDist, 0.6f);
+                    result.dist = smin;
+                    result.ambient = s.ambient;
+                    result.diffuse = s.diffuse;
+                    result.specular = s.specular;
+                    //closestDist = distToShape;
+                    //closestColor = s.diffuse.rgb;
+                }
+
+                break;
+                
+            case 3: // CUT
+                if (-distToShape > closestDist) {
+                    result.dist = -distToShape;
+                    result.ambient = s.ambient;
+                    result.diffuse = s.diffuse;
+                    result.specular = s.specular;
+                    //closestDist = distToShape;
+                    //closestColor = s.diffuse.rgb;
+                }
+                result.diffuse = s.diffuse;
+                break;
+                
+                
+
+            default: break;
         }
+        lastColor = result.diffuse;
+        closestDist = result.dist;
+        
     }
     return result;
 }
 
 float3 EsitmateNormal(float3 p) {
     return normalize(float3(
-        GetClosestShapeData(float3(p.x + THRESHOLD, p.yz)).dist - GetClosestShapeData(float3(p.x - THRESHOLD, p.yz)).dist,
-        GetClosestShapeData(float3(p.x, p.y + THRESHOLD, p.z)).dist - GetClosestShapeData(float3(p.x, p.y - THRESHOLD, p.z)).dist,
-        GetClosestShapeData(float3(p.xy, p.z + THRESHOLD)).dist - GetClosestShapeData(float3(p.xy, p.z - THRESHOLD)).dist
+        GetMarchData(float3(p.x + THRESHOLD, p.yz)).dist - GetMarchData(float3(p.x - THRESHOLD, p.yz)).dist,
+        GetMarchData(float3(p.x, p.y + THRESHOLD, p.z)).dist - GetMarchData(float3(p.x, p.y - THRESHOLD, p.z)).dist,
+        GetMarchData(float3(p.xy, p.z + THRESHOLD)).dist - GetMarchData(float3(p.xy, p.z - THRESHOLD)).dist
         ));
 }
+
 
 float4 BlinnPhong(float3 p, float3 orig,float3 L,float3 lightColor,float3 ambient ,float3 matDiffuse, float3 specular) {
     float3 lightDir = -L;
@@ -175,7 +246,7 @@ float4 BlinnPhong(float3 p, float3 orig,float3 L,float3 lightColor,float3 ambien
     float3 H = normalize(lightDir + E);
     float3 N = EsitmateNormal(p);
 
-    float4 amb = float4(ambient, 1.0);
+    
 
     float Kd = max(dot(N, lightDir), 0.0);
     float4 diffuse = Kd * float4(matDiffuse, 1.0);
@@ -193,9 +264,30 @@ float4 BlinnPhong(float3 p, float3 orig,float3 L,float3 lightColor,float3 ambien
 
 }
 
+float CalShadow(Ray ray, float shadowBias, float distToLight, float k) {
+    float result = 1.0f;
+    float rayDist = 0.00001f;
+    
+    ReturnData marchData;
+    while (rayDist < distToLight) {
+        marchData = GetMarchData(ray.origin);
+        float dist = marchData.dist;
+
+        if (dist < THRESHOLD) {
+            return 0.0f;
+        }
+        result = min(result, k * (dist / rayDist));
+        ray.origin += ray.dir * dist;
+        rayDist += dist;
+    }
+    return result;
+}
+
+
 [numthreads(8,8,1)]
 void CSMain (uint3 id : SV_DispatchThreadID)
 {
+
     //Default to showing the scene normally
     dest[id.xy] = source[id.xy];
     uint width, height;
@@ -210,23 +302,58 @@ void CSMain (uint3 id : SV_DispatchThreadID)
     
     while (steps < MAX_DIST ) {
         
-        closestData = GetClosestShapeData(ray.origin);
+        closestData = GetMarchData(ray.origin);
         
         //dest[id.xy] = float4(closestData.w,1,1, 1);
         //dest[id.xy] = float4(ray.origin * closestData.w, 1);
         if (closestData.dist < THRESHOLD) {
             
-            dest[id.xy] = float4(closestData.diffuse.rgb, 1);
+            //dest[id.xy] = float4(closestData.diffuse.rgb, 1);
             float4 fColor = float4(0,0,0,1);
+            float3 p = ray.origin + ray.dir * closestData.dist;
+            float3 normal = EsitmateNormal(p);
             for (int i = 0; i < lightsLen; i++) {
                 if (lights[i].type == 0) { //Directional
-                    fColor += BlinnPhong(ray.origin + ray.dir * closestData.dist, ray.origin,normalize(lights[i].forward),lights[i].color, closestData.ambient.rgb, closestData.diffuse.rgb, closestData.specular.rgb);
+                    float3 L = normalize(lights[i].forward);
+                    float4 tempColor = BlinnPhong(p, ray.origin, L, lights[i].color, closestData.ambient.rgb, closestData.diffuse.rgb, closestData.specular.rgb);
+
+                    //Shadow
+                    float3 dirToLight = -L;
+                    Ray shadowRay = CreateRay(p + (normal * THRESHOLD * 100), dirToLight);
+                    float distToLight = MAX_DIST;
+                    float shadow = CalShadow(shadowRay, 2, distToLight, 8);//CalculateShadow(shadowRay, distToLight);
+                    
+                    fColor += tempColor * shadow ;
                 }
                 else if (lights[i].type == 1) { //Point
+                    float3 L = normalize(p - lights[i].position);
+                    float4 tempColor = BlinnPhong(p, ray.origin, L, lights[i].color, closestData.ambient.rgb, closestData.diffuse.rgb, closestData.specular.rgb);
 
+                    //Shadow
+                    float3 dirToLight = -L;
+                    Ray shadowRay = CreateRay(p + (normal * THRESHOLD * 500), dirToLight);
+                    float distToLight = MAX_DIST;
+                    float shadow = CalShadow(shadowRay, 2, distToLight, 8);//CalculateShadow(shadowRay, distToLight);
+
+                    fColor += tempColor * shadow;
                 }
                 else if (lights[i].type == 2) { //Spot
+                    float3 L = normalize(p - lights[i].position);
+                    float3 dir = normalize(lights[i].forward);
+                    float cosAngle = dot(L, dir);
+                    float angle = acos(cosAngle);
+                    angle *= (180.0f / 3.14159f);
+                    if (angle < lights[i].cutOffAngle) {
+                        float4 tempColor = BlinnPhong(p, ray.origin, L, lights[i].color, closestData.ambient.rgb, closestData.diffuse.rgb, closestData.specular.rgb);
 
+                        //Shadow
+                        float3 dirToLight = -L;
+                        Ray shadowRay = CreateRay(p + (normal * THRESHOLD * 100), dirToLight);
+                        float distToLight = MAX_DIST;
+                        float shadow = CalShadow(shadowRay, 2, distToLight, 8);//CalculateShadow(shadowRay, distToLight);
+
+                        fColor += tempColor * shadow;
+                    }
                 }
                 else {
                     fColor += lights[i].color * float4(closestData.ambient,1.0);

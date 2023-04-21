@@ -11,15 +11,19 @@ public class RaymarchCam : MonoBehaviour
     private ComputeBuffer lightBuffer;
     private LightData[] lightDataArr;
     private List<RaymarchShape> shapes;
+    private float t = 0;
+    private float r = 0;
     Camera cam;
     [SerializeField]  private Light lightSource;
 
     struct ShapeData
     {
         public int type;
+        public int behaviour;
         public Vector3 position;
         public Vector3 scale;
         public Vector3 rot;
+        public Vector3 normal;
         public Vector3 ambient;
         public Vector4 diffuse;
         public Vector3 specular;
@@ -45,6 +49,12 @@ public class RaymarchCam : MonoBehaviour
     {
         
         
+    }
+
+    private void Update()
+    {
+        t += 0.01f;
+        r = 2*(Mathf.Sin(t) +1);
     }
 
     private void Start()
@@ -93,21 +103,27 @@ public class RaymarchCam : MonoBehaviour
         {
             shapeBuffer.Dispose();
         }
-        
+        if(lightBuffer != null)
+        {
+            lightBuffer.Dispose();
+        }
     }
 
     private ShapeData[] GetShapes()
     {
         List<RaymarchShape> list = new List<RaymarchShape>(FindObjectsOfType<RaymarchShape>());
+        list.Sort((a, b) => a.GetBehaviour().CompareTo(b.GetBehaviour()));
         ShapeData[] result = new ShapeData[list.Count];
 
         for (int i = 0; i < list.Count; i++)
         {
             
             result[i].type = list[i].GetShape();
+            result[i].behaviour = list[i].GetBehaviour();
             result[i].position = list[i].GetPosition();
             result[i].scale = list[i].GetScale();
             result[i].rot = list[i].GetRotation();
+            result[i].normal = list[i].GetNormal();
             result[i].ambient = list[i].GetAmbient();
             result[i].diffuse = list[i].GetColor();
             result[i].specular = list[i].GetSpecular();
@@ -141,7 +157,7 @@ public class RaymarchCam : MonoBehaviour
     {
         
         //Shape data
-        int shapeDataBytes = sizeof(int) + sizeof(float)*(3+3+3+3+4+3);
+        int shapeDataBytes = 2*sizeof(int) + sizeof(float)*(3+3+3+3+3+4+3);
         shapeBuffer = new ComputeBuffer(shapeDataArr.Length, shapeDataBytes);
         shapeBuffer.SetData(shapeDataArr);
         ShapeData[] temp = new ShapeData[2];
@@ -162,6 +178,8 @@ public class RaymarchCam : MonoBehaviour
         raymarch.SetBuffer(0, "lights", lightBuffer);
         raymarch.SetInt("lightsLen", lightDataArr.Length);
         raymarch.SetVector("light", lightSource.transform.position);
-        
+
+        raymarch.SetFloat("r", r);
+
     }
 }

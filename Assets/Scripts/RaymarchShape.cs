@@ -5,18 +5,34 @@ using UnityEngine;
 public class RaymarchShape : MonoBehaviour
 {
     [SerializeField] private Shape shape = Shape.CUBE;
+    [SerializeField] private Behaviour behaviour = Behaviour.DEFAULT;
     [SerializeField] private Vector3 ambient = new Vector3(0.3f, 0.3f, 0.3f);
     [SerializeField] private Color diffuse = Color.white;
-    [SerializeField] private Vector3 specular = new Vector3(1, 1, 1); 
+    [SerializeField] private Vector3 specular = new Vector3(1, 1, 1);
     private enum Shape
     {
         SPHERE,
         CUBE,
+        PLANE
+    }
+
+    private enum Behaviour
+    {
+        DEFAULT,
+        BLEND,
+        WRAP,
+        CUT,
+        
     }
 
     public int GetShape()
     {
         return (int)shape;
+    }
+
+    public int GetBehaviour()
+    {
+        return (int)behaviour;
     }
 
     public Vector3 GetPosition()
@@ -47,5 +63,10 @@ public class RaymarchShape : MonoBehaviour
     public Vector3 GetSpecular()
     {
         return specular;
+    }
+
+    public Vector3 GetNormal()
+    {
+        return transform.up;
     }
 }

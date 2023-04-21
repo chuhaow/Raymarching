@@ -11,7 +11,8 @@ public class RaymarchLight : MonoBehaviour
     {
         DIRECTIONAL,
         POINT,
-        SPOT
+        SPOT,
+        AMBIENT
     }
 
     public int GetLight()
