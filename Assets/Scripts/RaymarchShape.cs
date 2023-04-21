@@ -9,11 +9,16 @@ public class RaymarchShape : MonoBehaviour
     [SerializeField] private Vector3 ambient = new Vector3(0.3f, 0.3f, 0.3f);
     [SerializeField] private Color diffuse = Color.white;
     [SerializeField] private Vector3 specular = new Vector3(1, 1, 1);
+    [SerializeField] private float blend;
+
+    [Header("Fractal")]
+    [Range(1,30)]
+    [SerializeField] private float power;
     private enum Shape
     {
         SPHERE,
         CUBE,
-        PLANE
+        FRACTAL
     }
 
     private enum Behaviour
@@ -21,7 +26,9 @@ public class RaymarchShape : MonoBehaviour
         DEFAULT,
         BLEND,
         WRAP,
-        CUT,
+        COMPLEMENT,
+        INTERSECTION
+
         
     }
 
@@ -68,5 +75,15 @@ public class RaymarchShape : MonoBehaviour
     public Vector3 GetNormal()
     {
         return transform.up;
+    }
+
+    public float GetFractalPower()
+    {
+        return power;
+    }
+
+    public float GetBlendFactor()
+    {
+        return blend;
     }
 }

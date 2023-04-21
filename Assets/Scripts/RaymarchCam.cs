@@ -11,7 +11,7 @@ public class RaymarchCam : MonoBehaviour
     private ComputeBuffer lightBuffer;
     private LightData[] lightDataArr;
     private List<RaymarchShape> shapes;
-    private float t = 0;
+    private float t = 3.0f * (3.1415f/2.0f);
     private float r = 0;
     Camera cam;
     [SerializeField]  private Light lightSource;
@@ -27,6 +27,8 @@ public class RaymarchCam : MonoBehaviour
         public Vector3 ambient;
         public Vector4 diffuse;
         public Vector3 specular;
+        public float blend;
+        public float power;
     }
 
     struct LightData
@@ -53,8 +55,8 @@ public class RaymarchCam : MonoBehaviour
 
     private void Update()
     {
-        t += 0.01f;
-        r = 2*(Mathf.Sin(t) +1);
+        t += 0.5f * Time.deltaTime;
+        r = 5*(Mathf.Sin(t) + 1.2f);
     }
 
     private void Start()
@@ -127,6 +129,8 @@ public class RaymarchCam : MonoBehaviour
             result[i].ambient = list[i].GetAmbient();
             result[i].diffuse = list[i].GetColor();
             result[i].specular = list[i].GetSpecular();
+            result[i].blend = list[i].GetBlendFactor();
+            result[i].power = list[i].GetFractalPower();
             
         }
         return result;
@@ -157,7 +161,7 @@ public class RaymarchCam : MonoBehaviour
     {
         
         //Shape data
-        int shapeDataBytes = 2*sizeof(int) + sizeof(float)*(3+3+3+3+3+4+3);
+        int shapeDataBytes = 2*sizeof(int) + sizeof(float)*(3+3+3+3+3+4+3 + 1 + 1);
         shapeBuffer = new ComputeBuffer(shapeDataArr.Length, shapeDataBytes);
         shapeBuffer.SetData(shapeDataArr);
         ShapeData[] temp = new ShapeData[2];

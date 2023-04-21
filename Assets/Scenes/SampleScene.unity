@@ -714,7 +714,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &1184776259
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1073,7 +1073,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   shape: 0
-  behaviour: 0
+  behaviour: 3
   ambient: {x: 0.3, y: 0.3, z: 0.3}
   diffuse: {r: 0.17254902, g: 0.74509805, b: 0.19359584, a: 1}
   specular: {x: 1, y: 1, z: 1}

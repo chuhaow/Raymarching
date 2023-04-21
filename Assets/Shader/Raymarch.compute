@@ -23,6 +23,8 @@ struct ShapeData
     float3 ambient;
     float4 diffuse;
     float3 specular;
+    float blend;
+    float power;
 };
 
 struct ReturnData
@@ -44,7 +46,7 @@ struct LightData {
 };
 
 static const float MAX_DIST = 100;
-static const float THRESHOLD = 0.001;
+static const float THRESHOLD = 0.0001;
 
 RWTexture2D<float4> dest;
 Texture2D<float4> source;
@@ -132,10 +134,40 @@ float SDFPlane(float3 p, float n, float h) {
     return dot(p, n) + h;
 }
 
-float SmoothMin(float a, float b, float k) {
-    float h = max(k - abs(a - b), 0.0) / k;
-    return min(a, b) - h * h * k * (1.0 / 4.0);
+float SDFFractal(float3 pos, float3 origin, float3 power) {
+    float3 z = pos - origin;
+    float dr = 1.0;
+    float r = 0.0;
+    for (int i = 0; i < 15; i++) {
+        r = length(z);
+        if (r > 2) break;
+
+        // convert to polar coordinates
+        float theta = acos(z.z / r);
+        float phi = atan2(z.y, z.x);
+        dr = pow(r, power - 1.0) * power * dr + 1.0;
+
+        // scale and rotate the point
+        float zr = pow(r, power);
+        theta = theta * power;
+        phi = phi * power;
+
+        // convert back to cartesian coordinates
+        z = zr * float3(sin(theta) * cos(phi), sin(phi) * sin(theta), cos(theta));
+        z -= origin;
+        z += pos;
+    }
+    return 0.5 * log(r) * r / dr;
 }
+
+float2 SmoothMin(float a, float b, float k)
+{
+    float h = max(k - abs(a - b), 0.0) / k;
+    float m = h * h * h * 0.5;
+    float s = m * k * (1.0 / 3.0);
+    return (a < b) ? float2(a - s, m) : float2(b - s, 1.0 - m);
+}
+
 
 float GetShapeSDF(ShapeData s, float3 p) {
     float dist;
@@ -154,7 +186,7 @@ float GetShapeSDF(ShapeData s, float3 p) {
             dist = SDFBox(samplePointWithRotation.xyz,s.position,s.scale);
             break;
         case 2:
-            dist = SDFPlane(samplePointWithRotation.xyz, s.normal, s.position.y);
+            dist = SDFFractal(samplePointWithRotation.xyz, s.position,s.power);
             break;
         default:
             dist = MAX_DIST;
@@ -165,7 +197,7 @@ float GetShapeSDF(ShapeData s, float3 p) {
 
 ReturnData GetMarchData(float3 p) {
     float closestDist = MAX_DIST;
-    float4 lastColor = float4(1, 1, 1, 1);
+    float4 lastColor = 1;
     float3 closestColor = float3(0, 0, 0);
     ReturnData result = { closestDist, float3(0,0,0),lastColor, float3(0,0,0) };
     for (int i = 0; i < shapesLen; i++) {
@@ -178,50 +210,44 @@ ReturnData GetMarchData(float3 p) {
                     result.ambient = s.ambient;
                     result.diffuse = s.diffuse;
                     result.specular = s.specular;
-                    //closestDist = distToShape;
-                    //closestColor = s.diffuse.rgb;
                 }
-                result.diffuse = s.diffuse;
+
                 break;
             case 1: // BLEND
-                float smin = SmoothMin(distToShape, closestDist, 0.6f);
-
-                //float4 blendColor = lerp(lastColor, s.diffuse, smin);
-                result.dist = smin;
+                float2 smin = SmoothMin(closestDist, distToShape, s.blend);
+                float4 blendColor = lerp(lastColor, s.diffuse, smin.y);
+                result.dist = smin.x;
                 result.ambient = s.ambient;
-                result.diffuse = s.diffuse;
+                result.diffuse = blendColor;
                 result.specular = s.specular;
-                //closestDist = smin;
-                //closestColor = s.diffuse.rgb;
                 break;
                 
             case 2: // WRAP
                 if (distToShape < closestDist) {
-                    float smin = SmoothMin(distToShape, closestDist, 0.6f);
-                    result.dist = smin;
+                    float2 smin = SmoothMin(distToShape, closestDist, 0.6f);
+                    result.dist = smin.x;
                     result.ambient = s.ambient;
                     result.diffuse = s.diffuse;
                     result.specular = s.specular;
-                    //closestDist = distToShape;
-                    //closestColor = s.diffuse.rgb;
                 }
-
                 break;
                 
-            case 3: // CUT
+            case 3: // COMPLEMENT
                 if (-distToShape > closestDist) {
                     result.dist = -distToShape;
                     result.ambient = s.ambient;
                     result.diffuse = s.diffuse;
                     result.specular = s.specular;
-                    //closestDist = distToShape;
-                    //closestColor = s.diffuse.rgb;
                 }
-                result.diffuse = s.diffuse;
                 break;
-                
-                
-
+            case 4: // INTERSECTION
+                if (distToShape > closestDist) {
+                    result.dist = distToShape;
+                    result.ambient = s.ambient;
+                    result.diffuse = s.diffuse;
+                    result.specular = s.specular;
+                }   
+                break;
             default: break;
         }
         lastColor = result.diffuse;
@@ -245,8 +271,6 @@ float4 BlinnPhong(float3 p, float3 orig,float3 L,float3 lightColor,float3 ambien
     float3 E = normalize(orig - p);
     float3 H = normalize(lightDir + E);
     float3 N = EsitmateNormal(p);
-
-    
 
     float Kd = max(dot(N, lightDir), 0.0);
     float4 diffuse = Kd * float4(matDiffuse, 1.0);
@@ -356,9 +380,10 @@ void CSMain (uint3 id : SV_DispatchThreadID)
                     }
                 }
                 else {
-                    fColor += lights[i].color * float4(closestData.ambient,1.0);
+                    fColor += lights[i].color * float4(closestData.diffuse.rgb,1.0);
                 }
             }
+            float ao = 1 - float(it) / (255 - 1);
             dest[id.xy] = fColor;
             break;
         }
