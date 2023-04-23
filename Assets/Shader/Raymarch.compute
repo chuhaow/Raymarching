@@ -68,11 +68,11 @@ float4x4 GetRotateX(float theta) {
     float c = cos(theta);
     float s = sin(theta);
     return float4x4(
-        float4(1, 0, 0,0),
-        float4(0, c, -s,0),
-        float4(0, s, c,0),
+        float4(1, 0, 0, 0),
+        float4(0, c, -s, 0),
+        float4(0, s, c, 0),
         float4(0, 0, 0, 1)
-    );
+        );
 }
 
 float4x4 GetRotateY(float theta) {
@@ -80,27 +80,27 @@ float4x4 GetRotateY(float theta) {
     float s = sin(theta);
     return float4x4(
         float4(c, 0, s, 0),
-        float4(0, 1, 0,0),
-        float4(-s, 0, c,0),
-        float4(0,0,0,1)
-    );
+        float4(0, 1, 0, 0),
+        float4(-s, 0, c, 0),
+        float4(0, 0, 0, 1)
+        );
 }
 
 float4x4 GetRotateZ(float theta) {
     float c = cos(theta);
     float s = sin(theta);
     return float4x4(
-        float4(c, -s, 0,0),
-        float4(s, c, 0,0),
-        float4(0, 0, 1,0),
+        float4(c, -s, 0, 0),
+        float4(s, c, 0, 0),
+        float4(0, 0, 1, 0),
         float4(0, 0, 0, 1)
-    );
+        );
 }
 
 Ray CreateRay(float3 origin, float3 dir) {
     Ray ray;
     ray.origin = origin;
-    ray.dir = dir; 
+    ray.dir = dir;
     return ray;
 }
 
@@ -125,8 +125,8 @@ float SDFBox(float3 p, float3 origin, float3 size) {
 }
 
 float SDFSphere(float3 p, float3 origin, float radius) {
-    float displacement = 0;//sin(r * p.x) *  cos( r * p.y) * cos( r * p.z);//sin(r * p.x)*cos(r * p.x) * sin(r * p.y) * cos(r * p.y* p.y) * sin(r * p.z) * cos(r * p.z) * 0.25;
-    return distance(p, origin) - radius + displacement;
+    //float displacement = 0;//sin(r * p.x) *  cos( r * p.y) * cos( r * p.z);//sin(r * p.x)*cos(r * p.x) * sin(r * p.y) * cos(r * p.y* p.y) * sin(r * p.z) * cos(r * p.z) * 0.25;
+    return distance(p, origin) - radius;
 }
 
 float SDFPlane(float3 p, float n, float h) {
@@ -171,7 +171,7 @@ float2 SmoothMin(float a, float b, float k)
 
 float GetShapeSDF(ShapeData s, float3 p) {
     float dist;
-    float4 samplePointWithRotation = float4(p,1.0);
+    float4 samplePointWithRotation = float4(p, 1.0);
 
 
     // Unity default rotation order is Z-X-Y: https://docs.unity3d.com/Packages/com.unity.mathematics@0.0/api/Unity.Mathematics.math.RotationOrder.html#:~:text=Unity%20default%20rotation%20order.,finally%20around%20the%20y%20axis.&text=Extrinsic%20rotation%20around%20the%20x,finally%20around%20the%20z%20axis.&text=Extrinsic%20rotation%20around%20the%20x%20axis%2C%20then%20around%20the%20z,finally%20around%20the%20y%20axis.
@@ -179,18 +179,18 @@ float GetShapeSDF(ShapeData s, float3 p) {
     samplePointWithRotation = mul(samplePointWithRotation, GetRotateX(s.rot.x));
     samplePointWithRotation = mul(samplePointWithRotation, GetRotateZ(s.rot.z));
     switch (s.type) {
-        case 0:
-            dist = SDFSphere(samplePointWithRotation.xyz, s.position, s.scale.x);
-            break;
-        case 1:
-            dist = SDFBox(samplePointWithRotation.xyz,s.position,s.scale);
-            break;
-        case 2:
-            dist = SDFFractal(samplePointWithRotation.xyz, s.position,s.power);
-            break;
-        default:
-            dist = MAX_DIST;
-            break;
+    case 0:
+        dist = SDFSphere(samplePointWithRotation.xyz, s.position, s.scale.x);
+        break;
+    case 1:
+        dist = SDFBox(samplePointWithRotation.xyz, s.position, s.scale);
+        break;
+    case 2:
+        dist = SDFFractal(samplePointWithRotation.xyz, s.position, s.power);
+        break;
+    default:
+        dist = MAX_DIST;
+        break;
     }
     return dist;
 }
@@ -204,55 +204,55 @@ ReturnData GetMarchData(float3 p) {
         ShapeData s = shapes[i];
         float distToShape = GetShapeSDF(s, p);
         switch (s.behaviour) {
-            case 0: //Default
-                if (distToShape < closestDist) {
-                    result.dist = distToShape;
-                    result.ambient = s.ambient;
-                    result.diffuse = s.diffuse;
-                    result.specular = s.specular;
-                }
+        case 0: //Default
+            if (distToShape < closestDist) {
+                result.dist = distToShape;
+                result.ambient = s.ambient;
+                result.diffuse = s.diffuse;
+                result.specular = s.specular;
+            }
 
-                break;
-            case 1: // BLEND
-                float2 smin = SmoothMin(closestDist, distToShape, s.blend);
-                float4 blendColor = lerp(lastColor, s.diffuse, smin.y);
+            break;
+        case 1: // BLEND
+            float2 smin = SmoothMin(closestDist, distToShape, max(0.0001f,s.blend));
+            float4 blendColor = lerp(lastColor, s.diffuse, smin.y);
+            result.dist = smin.x;
+            result.ambient = s.ambient;
+            result.diffuse = blendColor;
+            result.specular = s.specular;
+            break;
+
+        case 2: // WRAP
+            if (distToShape < closestDist) {
+                float2 smin = SmoothMin(distToShape, closestDist, 0.6f);
                 result.dist = smin.x;
                 result.ambient = s.ambient;
-                result.diffuse = blendColor;
+                result.diffuse = s.diffuse;
                 result.specular = s.specular;
-                break;
-                
-            case 2: // WRAP
-                if (distToShape < closestDist) {
-                    float2 smin = SmoothMin(distToShape, closestDist, 0.6f);
-                    result.dist = smin.x;
-                    result.ambient = s.ambient;
-                    result.diffuse = s.diffuse;
-                    result.specular = s.specular;
-                }
-                break;
-                
-            case 3: // COMPLEMENT
-                if (-distToShape > closestDist) {
-                    result.dist = -distToShape;
-                    result.ambient = s.ambient;
-                    result.diffuse = s.diffuse;
-                    result.specular = s.specular;
-                }
-                break;
-            case 4: // INTERSECTION
-                if (distToShape > closestDist) {
-                    result.dist = distToShape;
-                    result.ambient = s.ambient;
-                    result.diffuse = s.diffuse;
-                    result.specular = s.specular;
-                }   
-                break;
-            default: break;
+            }
+            break;
+
+        case 3: // COMPLEMENT
+            if (-distToShape > closestDist) {
+                result.dist = -distToShape;
+                result.ambient = s.ambient;
+                result.diffuse = s.diffuse;
+                result.specular = s.specular;
+            }
+            break;
+        case 4: // INTERSECTION
+            if (distToShape > closestDist) {
+                result.dist = distToShape;
+                result.ambient = s.ambient;
+                result.diffuse = s.diffuse;
+                result.specular = s.specular;
+            }
+            break;
+        default: break;
         }
         lastColor = result.diffuse;
         closestDist = result.dist;
-        
+
     }
     return result;
 }
@@ -266,7 +266,7 @@ float3 EsitmateNormal(float3 p) {
 }
 
 
-float4 BlinnPhong(float3 p, float3 orig,float3 L,float3 lightColor,float3 ambient ,float3 matDiffuse, float3 specular) {
+float4 BlinnPhong(float3 p, float3 orig, float3 L, float3 lightColor, float3 ambient, float3 matDiffuse, float3 specular) {
     float3 lightDir = -L;
     float3 E = normalize(orig - p);
     float3 H = normalize(lightDir + E);
@@ -282,16 +282,16 @@ float4 BlinnPhong(float3 p, float3 orig,float3 L,float3 lightColor,float3 ambien
         spec = float4(0, 0, 0, 1);
     }
 
-    float4 color =  clamp((diffuse + spec)*float4(lightColor,1.0f), float4(0.0f, 0.0f, 0.0f, 0.0f),float4(1.0f, 1.0f, 1.0f, 1.0f));
+    float4 color = clamp((diffuse + spec) * float4(lightColor, 1.0f), float4(0.0f, 0.0f, 0.0f, 0.0f), float4(1.0f, 1.0f, 1.0f, 1.0f));
     color.w = 1;
     return color;
 
 }
 
-float CalShadow(Ray ray, float shadowBias, float distToLight, float k) {
+float CalShadow(Ray ray, float distToLight, float k) {
     float result = 1.0f;
     float rayDist = 0.00001f;
-    
+    float prevDist = 1;
     ReturnData marchData;
     while (rayDist < distToLight) {
         marchData = GetMarchData(ray.origin);
@@ -300,16 +300,19 @@ float CalShadow(Ray ray, float shadowBias, float distToLight, float k) {
         if (dist < THRESHOLD) {
             return 0.0f;
         }
-        result = min(result, k * (dist / rayDist));
+        float currDist = (dist * dist) / (2 * prevDist);
+        float estDist = sqrt((dist * dist) - (currDist * currDist));
+        result = min(result, estDist / (k * max(0.0000001f, rayDist - currDist)));
         ray.origin += ray.dir * dist;
+        prevDist = dist;
         rayDist += dist;
     }
-    return result;
+    return result * 7.1;
 }
 
 
-[numthreads(8,8,1)]
-void CSMain (uint3 id : SV_DispatchThreadID)
+[numthreads(8, 8, 1)]
+void CSMain(uint3 id : SV_DispatchThreadID)
 {
 
     //Default to showing the scene normally
@@ -317,23 +320,23 @@ void CSMain (uint3 id : SV_DispatchThreadID)
     uint width, height;
     dest.GetDimensions(width, height);
     float x = id.x / width * 2.0f - 1.0f;
-    float y = id.y/ height * 2.0f - 1.0f;
+    float y = id.y / height * 2.0f - 1.0f;
     float2 xy = id.xy / float2(width, height) * 2 - 1;;
     Ray ray = CameraRay(xy);
     float steps = 0;
     int it = 0;
     ReturnData closestData;
-    
-    while (steps < MAX_DIST ) {
-        
+
+    while (steps < MAX_DIST && it < 255) {
+
         closestData = GetMarchData(ray.origin);
-        
-        //dest[id.xy] = float4(closestData.w,1,1, 1);
+
+        //dest[id.xy] = float4(closestData.dist,0,0, 1);
         //dest[id.xy] = float4(ray.origin * closestData.w, 1);
         if (closestData.dist < THRESHOLD) {
-            
+
             //dest[id.xy] = float4(closestData.diffuse.rgb, 1);
-            float4 fColor = float4(0,0,0,1);
+            float4 fColor = float4(0, 0, 0, 1);
             float3 p = ray.origin + ray.dir * closestData.dist;
             float3 normal = EsitmateNormal(p);
             for (int i = 0; i < lightsLen; i++) {
@@ -345,9 +348,9 @@ void CSMain (uint3 id : SV_DispatchThreadID)
                     float3 dirToLight = -L;
                     Ray shadowRay = CreateRay(p + (normal * THRESHOLD * 100), dirToLight);
                     float distToLight = MAX_DIST;
-                    float shadow = CalShadow(shadowRay, 2, distToLight, 8);//CalculateShadow(shadowRay, distToLight);
-                    
-                    fColor += tempColor * shadow ;
+                    float shadow = CalShadow(shadowRay, distToLight, 8);//CalculateShadow(shadowRay, distToLight);
+
+                    fColor += tempColor * shadow;
                 }
                 else if (lights[i].type == 1) { //Point
                     float3 L = normalize(p - lights[i].position);
@@ -357,7 +360,7 @@ void CSMain (uint3 id : SV_DispatchThreadID)
                     float3 dirToLight = -L;
                     Ray shadowRay = CreateRay(p + (normal * THRESHOLD * 500), dirToLight);
                     float distToLight = MAX_DIST;
-                    float shadow = CalShadow(shadowRay, 2, distToLight, 8);//CalculateShadow(shadowRay, distToLight);
+                    float shadow = CalShadow(shadowRay, distToLight, 8);//CalculateShadow(shadowRay, distToLight);
 
                     fColor += tempColor * shadow;
                 }
@@ -374,13 +377,13 @@ void CSMain (uint3 id : SV_DispatchThreadID)
                         float3 dirToLight = -L;
                         Ray shadowRay = CreateRay(p + (normal * THRESHOLD * 100), dirToLight);
                         float distToLight = MAX_DIST;
-                        float shadow = CalShadow(shadowRay, 2, distToLight, 8);//CalculateShadow(shadowRay, distToLight);
+                        float shadow = CalShadow(shadowRay, distToLight, 8);//CalculateShadow(shadowRay, distToLight);
 
                         fColor += tempColor * shadow;
                     }
                 }
                 else {
-                    fColor += lights[i].color * float4(closestData.diffuse.rgb,1.0);
+                    fColor += lights[i].color * float4(closestData.diffuse.rgb, 1.0);
                 }
             }
             float ao = 1 - float(it) / (255 - 1);
@@ -389,7 +392,7 @@ void CSMain (uint3 id : SV_DispatchThreadID)
         }
         //March
         ray.origin = ray.origin + ray.dir * closestData.dist;
-        
+
         steps += closestData.dist;
         it++;
     }

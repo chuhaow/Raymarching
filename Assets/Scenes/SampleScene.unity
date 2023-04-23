@@ -142,7 +142,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!114 &109712384
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -267,7 +267,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &560886724
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -940,7 +940,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!114 &1498290632
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -954,12 +954,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   shape: 1
-  behaviour: 1
+  behaviour: 0
   ambient: {x: 0.1, y: 0.1, z: 0.1}
   diffuse: {r: 0.8490566, g: 0.15619439, b: 0.15619439, a: 1}
   specular: {x: 1, y: 1, z: 1}
-  blend: 0
-  power: 0
+  blend: 0.33
+  power: 13.2
 --- !u!65 &1498290633
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -988,7 +988,7 @@ MeshRenderer:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1498290631}
-  m_Enabled: 1
+  m_Enabled: 0
   m_CastShadows: 1
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
@@ -1065,7 +1065,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!114 &1569766074
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1079,7 +1079,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   shape: 0
-  behaviour: 3
+  behaviour: 0
   ambient: {x: 0.3, y: 0.3, z: 0.3}
   diffuse: {r: 0.17254902, g: 0.74509805, b: 0.19359584, a: 1}
   specular: {x: 1, y: 1, z: 1}

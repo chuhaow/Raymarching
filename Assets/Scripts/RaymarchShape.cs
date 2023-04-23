@@ -9,6 +9,7 @@ public class RaymarchShape : MonoBehaviour
     [SerializeField] private Vector3 ambient = new Vector3(0.3f, 0.3f, 0.3f);
     [SerializeField] private Color diffuse = Color.white;
     [SerializeField] private Vector3 specular = new Vector3(1, 1, 1);
+    [Range(0.01f,10)]
     [SerializeField] private float blend;
 
     [Header("Fractal")]
