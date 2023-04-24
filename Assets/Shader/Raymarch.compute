@@ -63,6 +63,10 @@ int lightsLen;
 float3 light;
 
 float r;
+float FogRate;
+
+bool AO;
+bool FogOn;
 
 float4x4 GetRotateX(float theta) {
     float c = cos(theta);
@@ -198,6 +202,7 @@ float GetShapeSDF(ShapeData s, float3 p) {
 ReturnData GetMarchData(float3 p) {
     float closestDist = MAX_DIST;
     float4 lastColor = 1;
+    ReturnData lastResult;
     float3 closestColor = float3(0, 0, 0);
     ReturnData result = { closestDist, float3(0,0,0),lastColor, float3(0,0,0) };
     for (int i = 0; i < shapesLen; i++) {
@@ -214,12 +219,15 @@ ReturnData GetMarchData(float3 p) {
 
             break;
         case 1: // BLEND
+            
             float2 smin = SmoothMin(closestDist, distToShape, max(0.0001f,s.blend));
-            float4 blendColor = lerp(lastColor, s.diffuse, smin.y);
+            float4 blendDiffuse = lerp(lastResult.diffuse, s.diffuse, smin.y);
+            float3 blendAmb = lerp(lastResult.ambient, s.ambient, smin.y);
+            float3 blendSpec = lerp(lastResult.specular, s.specular, smin.y);
             result.dist = smin.x;
-            result.ambient = s.ambient;
-            result.diffuse = blendColor;
-            result.specular = s.specular;
+            result.ambient = blendAmb;
+            result.diffuse = blendDiffuse;
+            result.specular = blendSpec;
             break;
 
         case 2: // WRAP
@@ -250,7 +258,7 @@ ReturnData GetMarchData(float3 p) {
             break;
         default: break;
         }
-        lastColor = result.diffuse;
+        lastResult = result;
         closestDist = result.dist;
 
     }
@@ -288,12 +296,13 @@ float4 BlinnPhong(float3 p, float3 orig, float3 L, float3 lightColor, float3 amb
 
 }
 
+
 float CalShadow(Ray ray, float distToLight, float k) {
     float result = 1.0f;
     float rayDist = 0.00001f;
     float prevDist = 1;
     ReturnData marchData;
-    while (rayDist < distToLight) {
+    while (rayDist < distToLight && result > 0) {
         marchData = GetMarchData(ray.origin);
         float dist = marchData.dist;
 
@@ -302,12 +311,41 @@ float CalShadow(Ray ray, float distToLight, float k) {
         }
         float currDist = (dist * dist) / (2 * prevDist);
         float estDist = sqrt((dist * dist) - (currDist * currDist));
-        result = min(result, estDist / (k * max(0.0000001f, rayDist - currDist)));
+        result = min(result, estDist / (max(0.0000001f, rayDist - currDist)));
         ray.origin += ray.dir * dist;
         prevDist = dist;
         rayDist += dist;
     }
-    return result * 7.1;
+    return clamp(result, 0.0f, 1.0f) ;
+}
+
+/*
+float CalShadow(Ray ray, float distToLight, float k) {
+    float result = 1.0f;
+    float rayDist = 0.00001f;
+
+    ReturnData marchData;
+    while (rayDist < distToLight) {
+        marchData = GetMarchData(ray.origin);
+        float dist = marchData.dist;
+
+        if (dist < THRESHOLD) {
+            return 0.0f;
+        }
+        result = min(result, k * (dist / rayDist));
+        ray.origin += ray.dir * dist;
+        rayDist += dist;
+    }
+    return result;
+}
+*/
+
+
+float3 applyFog(float3  rgb, float distance) 
+{
+    float fogAmount = 1.0 - exp(-distance * FogRate);
+    float3  fogColor = float3(0.5, 0.6, 0.7);
+    return lerp(rgb, fogColor, fogAmount);
 }
 
 
@@ -323,14 +361,18 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     float y = id.y / height * 2.0f - 1.0f;
     float2 xy = id.xy / float2(width, height) * 2 - 1;;
     Ray ray = CameraRay(xy);
+    float3 origin = ray.origin;
     float steps = 0;
     int it = 0;
     ReturnData closestData;
-
+    ReturnData near = GetMarchData(ray.origin);
+    float distToCam;
     while (steps < MAX_DIST && it < 255) {
 
         closestData = GetMarchData(ray.origin);
-
+        if (near.dist > closestData.dist) {
+            near.dist = closestData.dist;
+        }
         //dest[id.xy] = float4(closestData.dist,0,0, 1);
         //dest[id.xy] = float4(ray.origin * closestData.w, 1);
         if (closestData.dist < THRESHOLD) {
@@ -362,7 +404,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
                     float distToLight = MAX_DIST;
                     float shadow = CalShadow(shadowRay, distToLight, 8);//CalculateShadow(shadowRay, distToLight);
 
-                    fColor += tempColor * shadow;
+                    //fColor += tempColor * shadow;
                 }
                 else if (lights[i].type == 2) { //Spot
                     float3 L = normalize(p - lights[i].position);
@@ -379,23 +421,50 @@ void CSMain(uint3 id : SV_DispatchThreadID)
                         float distToLight = MAX_DIST;
                         float shadow = CalShadow(shadowRay, distToLight, 8);//CalculateShadow(shadowRay, distToLight);
 
-                        fColor += tempColor * shadow;
+                        //fColor += tempColor * shadow;
                     }
                 }
                 else {
-                    fColor += lights[i].color * float4(closestData.diffuse.rgb, 1.0);
+                    float ao;
+                    if (AO) {
+                        ao = 1 - float(it) / (255);
+                    }
+                    else {
+                        ao = 1;
+                    }
+                     
+                    fColor += lights[i].color * float4(closestData.diffuse.rgb, 1.0) * ao;
                 }
             }
-            float ao = 1 - float(it) / (255 - 1);
-            dest[id.xy] = fColor;
+            
+            
+            if (FogOn) {
+                distToCam = distance(origin, p);
+            }
+            else {
+                distToCam = 0;
+            }
+            dest[id.xy] = float4(applyFog(fColor.rgb, distToCam), 1);
             break;
+        }
+        else {
+            if (FogOn) {
+                distToCam = MAX_DIST;
+            }
+            else {
+                distToCam = 0;
+            }
+            dest[id.xy] = float4(applyFog(dest[id.xy].rgb, distToCam),1);
         }
         //March
         ray.origin = ray.origin + ray.dir * closestData.dist;
 
         steps += closestData.dist;
         it++;
+
     }
+
+    
     //Result[id.xy] = float4(ray.dir * 0.5f + 0.5f, 1.0f);
     //Result[id.xy] = float4(x,y,0.0, 0.0);
     //Go through all shapes and find distance and Color 

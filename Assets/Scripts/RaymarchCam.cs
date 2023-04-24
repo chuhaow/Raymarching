@@ -14,7 +14,11 @@ public class RaymarchCam : MonoBehaviour
     private float t = 3.0f * (3.1415f/2.0f);
     private float r = 0;
     Camera cam;
-    [SerializeField]  private Light lightSource;
+    [SerializeField] private Light lightSource;
+    [SerializeField] private bool AmbientOcclusion;
+    [SerializeField] private bool FogOn;
+    [Range(0, 1)]
+    [SerializeField] private float FogRate;
 
     struct ShapeData
     {
@@ -184,6 +188,10 @@ public class RaymarchCam : MonoBehaviour
         raymarch.SetVector("light", lightSource.transform.position);
 
         raymarch.SetFloat("r", r);
+
+        raymarch.SetBool("AO", AmbientOcclusion);
+        raymarch.SetBool("FogOn", FogOn);
+        raymarch.SetFloat("FogRate", FogRate);
 
     }
 }
