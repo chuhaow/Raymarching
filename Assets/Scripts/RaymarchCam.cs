@@ -19,6 +19,8 @@ public class RaymarchCam : MonoBehaviour
     [SerializeField] private bool FogOn;
     [Range(0, 1)]
     [SerializeField] private float FogRate;
+    [SerializeField] private bool GlowOn;
+
 
     struct ShapeData
     {
@@ -192,6 +194,7 @@ public class RaymarchCam : MonoBehaviour
         raymarch.SetBool("AO", AmbientOcclusion);
         raymarch.SetBool("FogOn", FogOn);
         raymarch.SetFloat("FogRate", FogRate);
+        raymarch.SetBool("Glow", GlowOn);
 
     }
 }

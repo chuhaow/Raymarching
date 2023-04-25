@@ -67,6 +67,7 @@ float FogRate;
 
 bool AO;
 bool FogOn;
+bool Glow;
 
 float4x4 GetRotateX(float theta) {
     float c = cos(theta);
@@ -367,18 +368,19 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     ReturnData closestData;
     ReturnData near = GetMarchData(ray.origin);
     float distToCam;
+    float4 fColor = float4(0, 0, 0, 1);
     while (steps < MAX_DIST && it < 255) {
 
         closestData = GetMarchData(ray.origin);
-        if (near.dist > closestData.dist) {
-            near.dist = closestData.dist;
-        }
+        
+         near.dist = min(closestData.dist, near.dist) ;
+        
         //dest[id.xy] = float4(closestData.dist,0,0, 1);
         //dest[id.xy] = float4(ray.origin * closestData.w, 1);
         if (closestData.dist < THRESHOLD) {
 
             //dest[id.xy] = float4(closestData.diffuse.rgb, 1);
-            float4 fColor = float4(0, 0, 0, 1);
+            //float4 fColor = float4(0, 0, 0, 1);
             float3 p = ray.origin + ray.dir * closestData.dist;
             float3 normal = EsitmateNormal(p);
             for (int i = 0; i < lightsLen; i++) {
@@ -404,7 +406,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
                     float distToLight = MAX_DIST;
                     float shadow = CalShadow(shadowRay, distToLight, 8);//CalculateShadow(shadowRay, distToLight);
 
-                    //fColor += tempColor * shadow;
+                    fColor += tempColor * shadow;
                 }
                 else if (lights[i].type == 2) { //Spot
                     float3 L = normalize(p - lights[i].position);
@@ -421,7 +423,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
                         float distToLight = MAX_DIST;
                         float shadow = CalShadow(shadowRay, distToLight, 8);//CalculateShadow(shadowRay, distToLight);
 
-                        //fColor += tempColor * shadow;
+                        fColor += tempColor * shadow;
                     }
                 }
                 else {
@@ -463,7 +465,20 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         it++;
 
     }
-
+    if (Glow) {
+        if (near.dist < THRESHOLD * 2.0f) {
+            if (it > 15) {
+                float rim = it / 15.0f;
+                dest[id.xy] = fColor * rim;
+            }
+            
+        }
+        else {
+            dest[id.xy] = source[id.xy];
+        }
+        
+    }
+    
     
     //Result[id.xy] = float4(ray.dir * 0.5f + 0.5f, 1.0f);
     //Result[id.xy] = float4(x,y,0.0, 0.0);
