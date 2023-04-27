@@ -19,7 +19,9 @@ public class RaymarchShape : MonoBehaviour
     {
         SPHERE,
         CUBE,
-        FRACTAL
+        FRACTAL,
+        TORUS,
+        TRIANGULAR_PRISM
     }
 
     private enum Behaviour

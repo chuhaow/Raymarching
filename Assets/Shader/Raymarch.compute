@@ -5,7 +5,6 @@
 // Create a RenderTexture with enableRandomWrite flag and set it
 // with cs.SetTexture
 
-float3 EsitmateNormal(float3 p);
 
 struct Ray {
     float3 origin;
@@ -122,6 +121,7 @@ Ray CameraRay(float2 xy) {
 
 }
 
+//The following SDFs are based on ones found here: https://iquilezles.org/articles/distfunctions/
 float SDFBox(float3 p, float3 origin, float3 size) {
     float3 o = abs(p - origin) - size;
     float ud = length(max(o, 0));
@@ -134,11 +134,18 @@ float SDFSphere(float3 p, float3 origin, float radius) {
     return distance(p, origin) - radius;
 }
 
-float SDFPlane(float3 p, float n, float h) {
-    n = normalize(n);
-    return dot(p, n) + h;
+float SDFTorus(float3 p, float3 origin, float2 radiusInfo) {
+    float2 q = float2(length((p - origin).xz) - radiusInfo.x, p.y - origin.y);
+    return length(q) - radiusInfo.y;
 }
 
+float SDFTriPrism(float3 p, float3 origin, float2 h)
+{
+    float3 q = abs(p - origin);
+    return max(q.z - h.y, max(q.x * 0.866025 + p.y * 0.5, -p.y) - h.x * 0.5);
+}
+
+// Based on function found here: http://blog.hvidtfeldts.net/index.php/2011/09/distance-estimated-3d-fractals-v-the-mandelbulb-different-de-approximations/
 float SDFFractal(float3 pos, float3 origin, float3 power) {
     float3 z = pos - origin;
     float dr = 1.0;
@@ -165,6 +172,7 @@ float SDFFractal(float3 pos, float3 origin, float3 power) {
     return 0.5 * log(r) * r / dr;
 }
 
+//Based on Function found here: https://iquilezles.org/articles/smin/
 float2 SmoothMin(float a, float b, float k)
 {
     float h = max(k - abs(a - b), 0.0) / k;
@@ -192,6 +200,12 @@ float GetShapeSDF(ShapeData s, float3 p) {
         break;
     case 2:
         dist = SDFFractal(samplePointWithRotation.xyz, s.position, s.power);
+        break;
+    case 3:
+        dist = SDFTorus(samplePointWithRotation.xyz, s.position, s.scale.xy);
+        break;
+    case 4:
+        dist = SDFTriPrism(samplePointWithRotation.xyz, s.position, s.scale.xy);
         break;
     default:
         dist = MAX_DIST;
@@ -297,8 +311,8 @@ float4 BlinnPhong(float3 p, float3 orig, float3 L, float3 lightColor, float3 amb
 
 }
 
-
-float CalShadow(Ray ray, float distToLight, float k) {
+//Based on function found here: https://iquilezles.org/articles/rmshadows/
+float CalShadow(Ray ray, float distToLight) {
     float result = 1.0f;
     float rayDist = 0.00001f;
     float prevDist = 1;
@@ -320,28 +334,7 @@ float CalShadow(Ray ray, float distToLight, float k) {
     return clamp(result, 0.0f, 1.0f) ;
 }
 
-/*
-float CalShadow(Ray ray, float distToLight, float k) {
-    float result = 1.0f;
-    float rayDist = 0.00001f;
-
-    ReturnData marchData;
-    while (rayDist < distToLight) {
-        marchData = GetMarchData(ray.origin);
-        float dist = marchData.dist;
-
-        if (dist < THRESHOLD) {
-            return 0.0f;
-        }
-        result = min(result, k * (dist / rayDist));
-        ray.origin += ray.dir * dist;
-        rayDist += dist;
-    }
-    return result;
-}
-*/
-
-
+// Based on function found here: https://iquilezles.org/articles/fog/
 float3 applyFog(float3  rgb, float distance) 
 {
     float fogAmount = 1.0 - exp(-distance * FogRate);
@@ -374,13 +367,8 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         closestData = GetMarchData(ray.origin);
         
          near.dist = min(closestData.dist, near.dist) ;
-        
-        //dest[id.xy] = float4(closestData.dist,0,0, 1);
-        //dest[id.xy] = float4(ray.origin * closestData.w, 1);
-        if (closestData.dist < THRESHOLD) {
 
-            //dest[id.xy] = float4(closestData.diffuse.rgb, 1);
-            //float4 fColor = float4(0, 0, 0, 1);
+        if (closestData.dist < THRESHOLD) {
             float3 p = ray.origin + ray.dir * closestData.dist;
             float3 normal = EsitmateNormal(p);
             for (int i = 0; i < lightsLen; i++) {
@@ -392,7 +380,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
                     float3 dirToLight = -L;
                     Ray shadowRay = CreateRay(p + (normal * THRESHOLD * 100), dirToLight);
                     float distToLight = MAX_DIST;
-                    float shadow = CalShadow(shadowRay, distToLight, 8);//CalculateShadow(shadowRay, distToLight);
+                    float shadow = CalShadow(shadowRay, distToLight);
 
                     fColor += tempColor * shadow;
                 }
@@ -404,7 +392,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
                     float3 dirToLight = -L;
                     Ray shadowRay = CreateRay(p + (normal * THRESHOLD * 500), dirToLight);
                     float distToLight = MAX_DIST;
-                    float shadow = CalShadow(shadowRay, distToLight, 8);//CalculateShadow(shadowRay, distToLight);
+                    float shadow = CalShadow(shadowRay, distToLight);
 
                     fColor += tempColor * shadow;
                 }
@@ -421,7 +409,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
                         float3 dirToLight = -L;
                         Ray shadowRay = CreateRay(p + (normal * THRESHOLD * 100), dirToLight);
                         float distToLight = MAX_DIST;
-                        float shadow = CalShadow(shadowRay, distToLight, 8);//CalculateShadow(shadowRay, distToLight);
+                        float shadow = CalShadow(shadowRay, distToLight);
 
                         fColor += tempColor * shadow;
                     }
@@ -469,7 +457,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         if (near.dist < THRESHOLD * 2.0f) {
             if (it > 15) {
                 float rim = it / 15.0f;
-                dest[id.xy] = fColor * rim;
+                dest[id.xy] = float4(applyFog(fColor.rgb, distToCam), 1) * rim;
             }
             
         }
@@ -479,10 +467,4 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         
     }
     
-    
-    //Result[id.xy] = float4(ray.dir * 0.5f + 0.5f, 1.0f);
-    //Result[id.xy] = float4(x,y,0.0, 0.0);
-    //Go through all shapes and find distance and Color 
-    //if distance is smaller than threshold output the pixel
-    //if greater move the distance in dir of ray
 }

@@ -10,11 +10,7 @@ public class RaymarchCam : MonoBehaviour
     private ShapeData[] shapeDataArr;
     private ComputeBuffer lightBuffer;
     private LightData[] lightDataArr;
-    private List<RaymarchShape> shapes;
-    private float t = 3.0f * (3.1415f/2.0f);
-    private float r = 0;
     Camera cam;
-    [SerializeField] private Light lightSource;
     [SerializeField] private bool AmbientOcclusion;
     [SerializeField] private bool FogOn;
     [Range(0, 1)]
@@ -53,31 +49,9 @@ public class RaymarchCam : MonoBehaviour
         cam = Camera.current;
     }
 
-    void Init()
-    {
-        
-        
-    }
-
-    private void Update()
-    {
-        t += 0.5f * Time.deltaTime;
-        r = 5*(Mathf.Sin(t) + 1.2f);
-    }
-
-    private void Start()
-    {
-        //renderTexture = new RenderTexture(256, 256, 24);
-       // renderTexture.enableRandomWrite = true;
-       // renderTexture.Create();
-       // raymarch.SetTexture(0, "Result", renderTexture);
-       // raymarch.Dispatch(0, renderTexture.width / 8, renderTexture.height / 8, 1);
-    }
-
     private void OnRenderImage(RenderTexture source, RenderTexture destination)
     {
         cam = Camera.current;
-        //shapes = new List<RaymarchShape>(FindObjectsOfType<RaymarchShape>());
         shapeDataArr = GetShapes();
         lightDataArr = GetLights();
 
@@ -98,10 +72,10 @@ public class RaymarchCam : MonoBehaviour
         {
             SetShaderParam();
         }
-        //Debug.Log(destination);
+
         raymarch.SetTexture(0, "source", source);
         raymarch.SetTexture(0, "dest", renderTexture);
-        //raymarch.SetTexture(0, "Result", renderTexture);
+
         raymarch.SetFloat("Resolution", renderTexture.width);
         raymarch.Dispatch(0, renderTexture.width / 8, renderTexture.height / 8, 1);
 
@@ -170,13 +144,9 @@ public class RaymarchCam : MonoBehaviour
         int shapeDataBytes = 2*sizeof(int) + sizeof(float)*(3+3+3+3+3+4+3 + 1 + 1);
         shapeBuffer = new ComputeBuffer(shapeDataArr.Length, shapeDataBytes);
         shapeBuffer.SetData(shapeDataArr);
-        ShapeData[] temp = new ShapeData[2];
-        //shapeBuffer.GetData(temp);
-        //Debug.Log(temp[0].position);
-        //Debug.Log(shapeBuffer[0].position);
+
         raymarch.SetBuffer(0, "shapes", shapeBuffer);
         raymarch.SetInt("shapesLen", shapeDataArr.Length);
-        //Render Texture
         //Cam to World matrix
         raymarch.SetMatrix("CamToWorldMatrix", cam.cameraToWorldMatrix);
         //Cam inverse matrix 
@@ -187,9 +157,6 @@ public class RaymarchCam : MonoBehaviour
         lightBuffer.SetData(lightDataArr);
         raymarch.SetBuffer(0, "lights", lightBuffer);
         raymarch.SetInt("lightsLen", lightDataArr.Length);
-        raymarch.SetVector("light", lightSource.transform.position);
-
-        raymarch.SetFloat("r", r);
 
         raymarch.SetBool("AO", AmbientOcclusion);
         raymarch.SetBool("FogOn", FogOn);

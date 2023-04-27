@@ -281,7 +281,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   shape: 0
-  behaviour: 2
+  behaviour: 3
   ambient: {x: 0.3, y: 0.3, z: 0.3}
   diffuse: {r: 0.74509805, g: 0.6807425, b: 0.17254902, a: 1}
   specular: {x: 1, y: 1, z: 1}
@@ -315,7 +315,7 @@ MeshRenderer:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 497130993}
-  m_Enabled: 1
+  m_Enabled: 0
   m_CastShadows: 1
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
@@ -825,7 +825,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   renderTexture: {fileID: 0}
   raymarch: {fileID: 7200000, guid: a06870dab96efe2469748ac442bd7f8a, type: 3}
-  lightSource: {fileID: 705507994}
+  AmbientOcclusion: 0
+  FogOn: 0
+  FogRate: 0
+  GlowOn: 0
 --- !u!1 &1043494744
 GameObject:
   m_ObjectHideFlags: 0
@@ -968,7 +971,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!114 &1184776259
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1078,7 +1081,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!114 &1250304356
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1091,8 +1094,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 08d9aeec2257ffe498366a14bbf7b0ed, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _light: 2
-  color: {r: 1, g: 0, b: 0, a: 0}
+  _light: 1
+  color: {r: 0, g: 0, b: 0, a: 0}
   cutOff: 0
 --- !u!108 &1250304357
 Light:
@@ -1414,7 +1417,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1633287727}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -5.5, y: 0, z: 1.9}
+  m_LocalPosition: {x: 2.02, y: 1.42, z: 4.22}
   m_LocalScale: {x: 1.2, y: 1.2, z: 1.2}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1539,7 +1542,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1842018208}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -3.3, y: 0, z: 2.9}
+  m_LocalPosition: {x: 2.81, y: 0.88, z: 4.81}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
