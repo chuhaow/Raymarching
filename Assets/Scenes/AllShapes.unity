@@ -470,7 +470,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   renderTexture: {fileID: 0}
   raymarch: {fileID: 7200000, guid: a06870dab96efe2469748ac442bd7f8a, type: 3}
-  lightSource: {fileID: 1894753750}
   AmbientOcclusion: 0
   FogOn: 0
   FogRate: 0
@@ -689,8 +688,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 08d9aeec2257ffe498366a14bbf7b0ed, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _light: 2
-  color: {r: 1, g: 0, b: 0, a: 0}
+  _light: 1
+  color: {r: 1, g: 1, b: 1, a: 0}
   cutOff: 0
 --- !u!108 &1543393786
 Light:
